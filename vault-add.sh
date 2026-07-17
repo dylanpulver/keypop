@@ -1,0 +1,69 @@
+#!/bin/bash
+# vault-add.sh NAME[:note] [NAME2[:note2] ...] — secure secret intake via native popup.
+#
+# The problem: when an AI coding agent needs a credential, the naive flow is "paste it
+# in chat" — where it lands in transcript history, logs, and the model's context. This
+# closes that hole: the agent requests a secret BY NAME, a native OS dialog collects the
+# VALUE out-of-band, and the value goes straight to a local gitignored file. It never
+# transits the model's context.
+#
+# One hidden-input dialog per requested secret, labeled with what's needed and why:
+#   vault-add.sh OPENAI_API_KEY:"for embeddings" SUPABASE_SECRET_KEY
+# Enter = Save. "Skip" skips this one. Esc / "Cancel all" stops the rest.
+#
+# Vault location: $VAULT_FILE, default ~/.agent-vault/vault.env  (chmod 600).
+# macOS only (uses osascript). Linux zenity/kdialog port welcome — see README.
+set -uo pipefail
+VAULT="${VAULT_FILE:-$HOME/.agent-vault/vault.env}"
+command -v osascript >/dev/null || { echo "error: osascript not found (this tool is macOS-only for now)"; exit 1; }
+mkdir -p "$(dirname "$VAULT")" && chmod 700 "$(dirname "$VAULT")"
+touch "$VAULT" && chmod 600 "$VAULT"
+[ $# -ge 1 ] || { echo "usage: vault-add.sh NAME[:note] [NAME2[:note2] ...]"; exit 1; }
+
+total=$#; i=0; saved=(); skipped=(); cancelled=()
+for spec in "$@"; do
+  i=$((i+1))
+  NAME="${spec%%:*}"
+  NOTE="${spec#*:}"; [ "$NOTE" = "$spec" ] && NOTE=""
+  MSG="Needed: $NAME"
+  grep -q "^${NAME}=" "$VAULT" && MSG="$MSG"$'\n'"(already in vault — Save replaces it)"
+  [ -n "$NOTE" ] && MSG="$MSG"$'\n\n'"$NOTE"
+  TITLE="Agent Vault ($i of $total)"
+
+  OUT=$(osascript \
+    -e 'on run argv' \
+    -e 'tell application "System Events" to activate' \
+    -e 'tell application "System Events" to set r to display dialog (item 1 of argv) default answer "" with hidden answer with title (item 2 of argv) buttons {"Cancel all","Skip","Save"} default button "Save" cancel button "Cancel all"' \
+    -e 'return (button returned of r) & linefeed & (text returned of r)' \
+    -e 'end run' "$MSG" "$TITLE" 2>/dev/null) || {
+      cancelled+=("$NAME"); shift_rest=true
+      # collect remaining names as cancelled and stop
+      j=0
+      for rest in "$@"; do
+        j=$((j+1)); [ "$j" -le "$i" ] && continue
+        cancelled+=("${rest%%:*}")
+      done
+      break
+    }
+
+  BTN="${OUT%%$'\n'*}"
+  VAL="${OUT#*$'\n'}"
+  VAL="${VAL//$'\n'/}"
+  if [ "$BTN" != "Save" ] || [ -z "$VAL" ]; then
+    skipped+=("$NAME"); continue
+  fi
+  # replace any existing entry, then append fresh
+  if grep -q "^${NAME}=" "$VAULT"; then
+    grep -v "^${NAME}=" "$VAULT" > "$VAULT.tmp" && mv "$VAULT.tmp" "$VAULT" && chmod 600 "$VAULT"
+  fi
+  {
+    printf '# %s — added %s\n' "${NOTE:-$NAME}" "$(date +%F)"
+    printf '%s=%s\n' "$NAME" "$VAL"
+  } >> "$VAULT"
+  saved+=("$NAME (${#VAL} chars)")
+done
+
+[ ${#saved[@]} -gt 0 ] && echo "saved: ${saved[*]}"
+[ ${#skipped[@]} -gt 0 ] && echo "skipped: ${skipped[*]}"
+[ ${#cancelled[@]} -gt 0 ] && echo "cancelled: ${cancelled[*]}"
+exit 0

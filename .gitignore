@@ -1,0 +1,4 @@
+# never commit an actual vault
+vault.env
+*.vault.env
+.agent-vault/
