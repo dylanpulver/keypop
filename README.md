@@ -1,4 +1,13 @@
-# keypop
+<p align="center"><img src="assets/social.png" alt="keypop — stop pasting API keys into Claude Code and Cursor; your agent asks for a secret it never sees" width="640"></p>
+
+<h1 align="center">🔑 keypop</h1>
+
+<p align="center"><b>Stop pasting API keys into Claude Code, Cursor, and other AI agents.</b><br>
+keypop pops a native dialog so your agent collects a secret it never sees — the value goes to a local file, never the model's context.</p>
+
+<p align="center">🍎 macOS · 🐚 60 lines of shell · 🔌 no infra, no daemon, no account</p>
+
+---
 
 A secure secret-intake channel for AI coding agents (Claude Code, Cursor, etc.).
 

@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1280px; height: 640px; }
+  body {
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    background: radial-gradient(1200px 600px at 30% 20%, #1b2a4a 0%, #0b1220 60%, #070b14 100%);
+    color: #e8eef8;
+    font-family: -apple-system, "SF Pro Display", "Segoe UI", Helvetica, Arial, sans-serif;
+    text-align: center;
+  }
+  .key { font-size: 150px; line-height: 1; margin-bottom: 8px; filter: drop-shadow(0 8px 24px rgba(0,0,0,.5)); }
+  h1 { font-size: 128px; font-weight: 800; letter-spacing: -3px; margin-bottom: 22px; }
+  .tag { font-size: 40px; font-weight: 600; color: #cdd8ea; max-width: 1000px; line-height: 1.28; }
+  .tag b { color: #6ea8ff; }
+  .meta {
+    margin-top: 40px; font-size: 27px; color: #7f8ea8; font-weight: 500;
+    display: flex; gap: 34px;
+  }
+  .meta span { white-space: nowrap; }
+</style>
+<body>
+  <div class="key">🔑</div>
+  <h1>keypop</h1>
+  <div class="tag">Stop pasting API keys into <b>Claude Code</b> &amp; <b>Cursor</b>.<br>Your agent asks for a secret it never sees.</div>
+  <div class="meta">
+    <span>🍎 macOS</span>
+    <span>🐚 60 lines of shell</span>
+    <span>🔌 no infra</span>
+  </div>
+</body>
