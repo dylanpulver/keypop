@@ -1,21 +1,21 @@
 # Agent doctrine — paste into your agent's instructions
 
-Copy this into your `CLAUDE.md`, system prompt, or rules file so the agent uses the vault
+Copy this into your `CLAUDE.md`, system prompt, or rules file so the agent uses keypop
 instead of asking for secret values in chat. Adjust the path if you set a custom `VAULT_FILE`.
 
 ---
 
-## Secrets — the vault (`~/.agent-vault/vault.env`)
+## Secrets — the vault (`~/.keypop/vault.env`)
 
 The vault is the source of truth for credentials (`chmod 600`, outside all repos). **Before
-ever asking me for a credential, check it first** (`grep -i <service> ~/.agent-vault/vault.env`).
+ever asking me for a credential, check it first** (`grep -i <service> ~/.keypop/vault.env`).
 "I gave you that key already" means it should be there.
 
 **Intake — the popup, fired automatically.** The moment you need a credential that isn't in
 the vault — mid-task, no need for me to ask — run:
 
 ```bash
-vault-add 'NAME_ONE:why it is needed' 'NAME_TWO:note'
+keypop 'NAME_ONE:why it is needed' 'NAME_TWO:note'
 ```
 
 One native dialog per secret pops on my screen showing the name + note (hidden ••• input). I

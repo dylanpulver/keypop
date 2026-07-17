@@ -1,5 +1,5 @@
 #!/bin/bash
-# vault-add.sh NAME[:note] [NAME2[:note2] ...] — secure secret intake via native popup.
+# keypop NAME[:note] [NAME2[:note2] ...] — secure secret intake via native popup.
 #
 # The problem: when an AI coding agent needs a credential, the naive flow is "paste it
 # in chat" — where it lands in transcript history, logs, and the model's context. This
@@ -8,17 +8,17 @@
 # transits the model's context.
 #
 # One hidden-input dialog per requested secret, labeled with what's needed and why:
-#   vault-add.sh OPENAI_API_KEY:"for embeddings" SUPABASE_SECRET_KEY
+#   keypop OPENAI_API_KEY:"for embeddings" SUPABASE_SECRET_KEY
 # Enter = Save. "Skip" skips this one. Esc / "Cancel all" stops the rest.
 #
-# Vault location: $VAULT_FILE, default ~/.agent-vault/vault.env  (chmod 600).
+# Vault location: $VAULT_FILE, default ~/.keypop/vault.env  (chmod 600).
 # macOS only (uses osascript). Linux zenity/kdialog port welcome — see README.
 set -uo pipefail
-VAULT="${VAULT_FILE:-$HOME/.agent-vault/vault.env}"
-command -v osascript >/dev/null || { echo "error: osascript not found (this tool is macOS-only for now)"; exit 1; }
+VAULT="${VAULT_FILE:-$HOME/.keypop/vault.env}"
+command -v osascript >/dev/null || { echo "error: osascript not found (keypop is macOS-only for now)"; exit 1; }
 mkdir -p "$(dirname "$VAULT")" && chmod 700 "$(dirname "$VAULT")"
 touch "$VAULT" && chmod 600 "$VAULT"
-[ $# -ge 1 ] || { echo "usage: vault-add.sh NAME[:note] [NAME2[:note2] ...]"; exit 1; }
+[ $# -ge 1 ] || { echo "usage: keypop NAME[:note] [NAME2[:note2] ...]"; exit 1; }
 
 total=$#; i=0; saved=(); skipped=(); cancelled=()
 for spec in "$@"; do
@@ -28,7 +28,7 @@ for spec in "$@"; do
   MSG="Needed: $NAME"
   grep -q "^${NAME}=" "$VAULT" && MSG="$MSG"$'\n'"(already in vault — Save replaces it)"
   [ -n "$NOTE" ] && MSG="$MSG"$'\n\n'"$NOTE"
-  TITLE="Agent Vault ($i of $total)"
+  TITLE="keypop ($i of $total)"
 
   OUT=$(osascript \
     -e 'on run argv' \

@@ -1,4 +1,4 @@
-# agent-vault
+# keypop
 
 A secure secret-intake channel for AI coding agents (Claude Code, Cursor, etc.).
 
@@ -11,10 +11,10 @@ out-of-band; the value goes straight to a local, gitignored file. The secret nev
 the model's context.
 
 ```
-agent  ──"I need OPENAI_API_KEY"──▶  vault-add.sh  ──▶  native macOS dialog (hidden input)
-                                                              │  you paste, hit Save
-                                                              ▼
-                                                   ~/.agent-vault/vault.env  (chmod 600)
+agent  ──"I need OPENAI_API_KEY"──▶  keypop  ──▶  native macOS dialog (hidden input)
+                                                       │  you paste, hit Save
+                                                       ▼
+                                             ~/.keypop/vault.env  (chmod 600)
 ```
 
 The agent sees only the confirmation (`saved: OPENAI_API_KEY (164 chars)`) — never the value.
@@ -22,8 +22,8 @@ The agent sees only the confirmation (`saved: OPENAI_API_KEY (164 chars)`) — n
 ## Install
 
 ```bash
-git clone https://github.com/<you>/agent-vault.git
-ln -s "$PWD/agent-vault/vault-add.sh" /usr/local/bin/vault-add   # or add to PATH
+git clone https://github.com/<you>/keypop.git
+ln -s "$PWD/keypop/keypop" /usr/local/bin/keypop   # or add to PATH
 ```
 
 macOS only for now (uses `osascript`). Linux port via `zenity`/`kdialog` is a welcome PR.
@@ -32,7 +32,7 @@ macOS only for now (uses `osascript`). Linux port via `zenity`/`kdialog` is a we
 
 ```bash
 # one dialog per secret, each labeled with what's needed and why
-vault-add OPENAI_API_KEY:"for embeddings" SUPABASE_SECRET_KEY
+keypop OPENAI_API_KEY:"for embeddings" SUPABASE_SECRET_KEY
 ```
 
 - **Save** (or Enter) writes the value to the vault.
@@ -47,7 +47,7 @@ saved: OPENAI_API_KEY (164 chars)
 skipped: SUPABASE_SECRET_KEY
 ```
 
-Change the vault location with `VAULT_FILE=/path/to/vault.env vault-add ...`.
+Change the vault location with `VAULT_FILE=/path/to/vault.env keypop ...`.
 
 ## Reading secrets back
 
@@ -55,10 +55,10 @@ The vault is a plain `KEY=value` file, so consumption is boring on purpose:
 
 ```bash
 # check before ever asking
-grep -i openai ~/.agent-vault/vault.env
+grep -i openai ~/.keypop/vault.env
 
 # load into a shell / project
-set -a && source ~/.agent-vault/vault.env && set +a
+set -a && source ~/.keypop/vault.env && set +a
 ```
 
 ## Wiring it into your agent
