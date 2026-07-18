@@ -9,7 +9,8 @@
 #
 # One hidden-input dialog per requested secret, labeled with what's needed and why:
 #   keypop OPENAI_API_KEY:"for embeddings" SUPABASE_SECRET_KEY
-# Enter = Save. "Skip" skips this one. Esc / "Cancel all" stops the rest.
+# Masked by default. "Reveal" unmasks what you typed (to verify a paste), "Hide" re-masks.
+# Enter = Save. Blank + Save skips this one. Esc / "Cancel all" stops the rest.
 #
 # Vault location: $VAULT_FILE, default ~/.keypop/vault.env  (chmod 600).
 # macOS only (uses osascript). Linux zenity/kdialog port welcome — see README.
@@ -30,26 +31,39 @@ for spec in "$@"; do
   [ -n "$NOTE" ] && MSG="$MSG"$'\n\n'"$NOTE"
   TITLE="keypop ($i of $total)"
 
-  OUT=$(osascript \
-    -e 'on run argv' \
-    -e 'tell application "System Events" to activate' \
-    -e 'tell application "System Events" to set r to display dialog (item 1 of argv) default answer "" with hidden answer with title (item 2 of argv) buttons {"Cancel all","Skip","Save"} default button "Save" cancel button "Cancel all"' \
-    -e 'return (button returned of r) & linefeed & (text returned of r)' \
-    -e 'end run' "$MSG" "$TITLE" 2>/dev/null) || {
-      cancelled+=("$NAME"); shift_rest=true
-      # collect remaining names as cancelled and stop
-      j=0
-      for rest in "$@"; do
-        j=$((j+1)); [ "$j" -le "$i" ] && continue
-        cancelled+=("${rest%%:*}")
-      done
-      break
-    }
+  HINT=$'\n\n'"Paste the value. \"Reveal\" shows what you typed so you can check it; blank + Save skips."
 
-  BTN="${OUT%%$'\n'*}"
-  VAL="${OUT#*$'\n'}"
-  VAL="${VAL//$'\n'/}"
-  if [ "$BTN" != "Save" ] || [ -z "$VAL" ]; then
+  # Re-prompt loop: Reveal/Hide toggles masking in place, carrying the typed value forward
+  # via `default answer`. AppleScript allows only 3 buttons, so skip = blank + Save.
+  VAL=""; HIDDEN=1; DECISION=""
+  while [ -z "$DECISION" ]; do
+    if [ "$HIDDEN" -eq 1 ]; then HCLAUSE="with hidden answer"; TGL="Reveal"; else HCLAUSE=""; TGL="Hide"; fi
+    # only our own labels ($TGL) are interpolated into the script; all user data goes via argv
+    DLG="tell application \"System Events\" to set r to display dialog (item 1 of argv) default answer (item 3 of argv) $HCLAUSE with title (item 2 of argv) buttons {\"Cancel all\",\"$TGL\",\"Save\"} default button \"Save\" cancel button \"Cancel all\""
+    OUT=$(osascript \
+      -e 'on run argv' \
+      -e 'tell application "System Events" to activate' \
+      -e "$DLG" \
+      -e 'return (button returned of r) & linefeed & (text returned of r)' \
+      -e 'end run' "$MSG$HINT" "$TITLE" "$VAL" 2>/dev/null) || {
+        cancelled+=("$NAME")
+        j=0
+        for rest in "$@"; do
+          j=$((j+1)); [ "$j" -le "$i" ] && continue
+          cancelled+=("${rest%%:*}")
+        done
+        DECISION="cancelall"; break
+      }
+    BTN="${OUT%%$'\n'*}"
+    VAL="${OUT#*$'\n'}"; VAL="${VAL//$'\n'/}"
+    case "$BTN" in
+      Reveal) HIDDEN=0 ;;
+      Hide)   HIDDEN=1 ;;
+      *)      DECISION="save" ;;
+    esac
+  done
+  [ "$DECISION" = "cancelall" ] && break
+  if [ -z "$VAL" ]; then
     skipped+=("$NAME"); continue
   fi
   # replace any existing entry, then append fresh

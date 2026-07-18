@@ -2,3 +2,6 @@
 vault.env
 *.vault.env
 .agent-vault/
+
+# internal draft log, never publish
+.claude/

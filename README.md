@@ -45,7 +45,8 @@ keypop OPENAI_API_KEY:"for embeddings" SUPABASE_SECRET_KEY
 ```
 
 - **Save** (or Enter) writes the value to the vault.
-- **Skip** skips just this one.
+- **Reveal / Hide** toggles masking in place — unmask to check a paste, re-mask when done. Masked by default.
+- **Blank + Save** skips just this one.
 - **Cancel all** (or Esc) stops the rest.
 - Re-adding an existing name replaces it in place.
 

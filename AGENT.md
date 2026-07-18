@@ -18,8 +18,9 @@ the vault — mid-task, no need for me to ask — run:
 keypop 'NAME_ONE:why it is needed' 'NAME_TWO:note'
 ```
 
-One native dialog per secret pops on my screen showing the name + note (hidden ••• input). I
-paste, hit Enter, done; "Skip" skips one, "Cancel all" stops the rest. The script writes
+One native dialog per secret pops on my screen showing the name + note (masked ••• input). I
+paste, hit Enter, done; "Reveal" unmasks to check the paste, blank + Save skips one, "Cancel
+all" stops the rest. The script writes
 straight to the vault and prints only names + char counts. **Never ask for a secret value in
 chat** — ask via the popup; in chat just say what you popped and why. Batch all needed names
 into ONE invocation.
