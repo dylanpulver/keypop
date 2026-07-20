@@ -1,83 +1,161 @@
 #!/bin/bash
-# keypop NAME[:note] [NAME2[:note2] ...] — secure secret intake via native popup.
+# keypop — secure secret intake via native popup. Values never touch chat, transcript, or logs.
 #
 # The problem: when an AI coding agent needs a credential, the naive flow is "paste it
-# in chat" — where it lands in transcript history, logs, and the model's context. This
-# closes that hole: the agent requests a secret BY NAME, a native OS dialog collects the
-# VALUE out-of-band, and the value goes straight to a local gitignored file. It never
-# transits the model's context.
+# in chat" — where it lands in transcript history, logs, and the model's context. keypop
+# closes that hole: the value is collected out-of-band in a native dialog and written
+# straight to a local gitignored file. It never transits the model's context.
 #
-# One hidden-input dialog per requested secret, labeled with what's needed and why:
-#   keypop OPENAI_API_KEY:"for embeddings" SUPABASE_SECRET_KEY
+# Two modes:
+#   keypop NAME[:note] [NAME2[:note2] ...]   one masked dialog per secret (agent flow)
+#   keypop --paste                           paste a .env-style block, extract all pairs at once
+#
 # Masked by default. "Reveal" unmasks what you typed (to verify a paste), "Hide" re-masks.
-# Enter = Save. Blank + Save skips this one. Esc / "Cancel all" stops the rest.
+# Enter = Save. Blank + Save skips. Esc / "Cancel all" stops the rest.
 #
 # Vault location: $VAULT_FILE, default ~/.keypop/vault.env  (chmod 600).
 # macOS only (uses osascript). Linux zenity/kdialog port welcome — see README.
 set -uo pipefail
 VAULT="${VAULT_FILE:-$HOME/.keypop/vault.env}"
-command -v osascript >/dev/null || { echo "error: osascript not found (keypop is macOS-only for now)"; exit 1; }
-mkdir -p "$(dirname "$VAULT")" && chmod 700 "$(dirname "$VAULT")"
-touch "$VAULT" && chmod 600 "$VAULT"
-[ $# -ge 1 ] || { echo "usage: keypop NAME[:note] [NAME2[:note2] ...]"; exit 1; }
 
-total=$#; i=0; saved=(); skipped=(); cancelled=()
-for spec in "$@"; do
-  i=$((i+1))
-  NAME="${spec%%:*}"
-  NOTE="${spec#*:}"; [ "$NOTE" = "$spec" ] && NOTE=""
-  MSG="Needed: $NAME"
-  grep -q "^${NAME}=" "$VAULT" && MSG="$MSG"$'\n'"(already in vault — Save replaces it)"
-  [ -n "$NOTE" ] && MSG="$MSG"$'\n\n'"$NOTE"
-  TITLE="keypop ($i of $total)"
+usage() {
+  cat <<'EOF'
+usage:
+  keypop NAME[:note] [NAME2[:note2] ...]   one masked dialog per secret
+  keypop --paste                           paste a .env-style block, extract all pairs
+  keypop --help
 
-  HINT=$'\n\n'"Paste the value. \"Reveal\" shows what you typed so you can check it; blank + Save skips."
+In any dialog: Reveal/Hide toggles masking, Enter saves, blank + Save skips.
+EOF
+}
 
-  # Re-prompt loop: Reveal/Hide toggles masking in place, carrying the typed value forward
-  # via `default answer`. AppleScript allows only 3 buttons, so skip = blank + Save.
-  VAL=""; HIDDEN=1; DECISION=""
-  while [ -z "$DECISION" ]; do
-    if [ "$HIDDEN" -eq 1 ]; then HCLAUSE="with hidden answer"; TGL="Reveal"; else HCLAUSE=""; TGL="Hide"; fi
-    # only our own labels ($TGL) are interpolated into the script; all user data goes via argv
-    DLG="tell application \"System Events\" to set r to display dialog (item 1 of argv) default answer (item 3 of argv) $HCLAUSE with title (item 2 of argv) buttons {\"Cancel all\",\"$TGL\",\"Save\"} default button \"Save\" cancel button \"Cancel all\""
-    OUT=$(osascript \
+# trim leading/trailing whitespace
+trim() { local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
+
+# ask_masked MSG TITLE — one dialog with an in-place Reveal/Hide toggle.
+# Echoes the entered value on Save (exit 0); exit 1 on Cancel all / Esc.
+ask_masked() {
+  local msg="$1" title="$2" val="" hidden=1 out btn hclause tgl dlg
+  while :; do
+    if [ "$hidden" -eq 1 ]; then hclause="with hidden answer"; tgl="Reveal"; else hclause=""; tgl="Hide"; fi
+    # only our own label ($tgl) is interpolated into the script; all user data goes via argv
+    dlg="tell application \"System Events\" to set r to display dialog (item 1 of argv) default answer (item 3 of argv) $hclause with title (item 2 of argv) buttons {\"Cancel all\",\"$tgl\",\"Save\"} default button \"Save\" cancel button \"Cancel all\""
+    out=$(osascript \
       -e 'on run argv' \
       -e 'tell application "System Events" to activate' \
-      -e "$DLG" \
+      -e "$dlg" \
       -e 'return (button returned of r) & linefeed & (text returned of r)' \
-      -e 'end run' "$MSG$HINT" "$TITLE" "$VAL" 2>/dev/null) || {
-        cancelled+=("$NAME")
-        j=0
-        for rest in "$@"; do
-          j=$((j+1)); [ "$j" -le "$i" ] && continue
-          cancelled+=("${rest%%:*}")
-        done
-        DECISION="cancelall"; break
-      }
-    BTN="${OUT%%$'\n'*}"
-    VAL="${OUT#*$'\n'}"; VAL="${VAL//$'\n'/}"
-    case "$BTN" in
-      Reveal) HIDDEN=0 ;;
-      Hide)   HIDDEN=1 ;;
-      *)      DECISION="save" ;;
+      -e 'end run' "$msg" "$title" "$val" 2>/dev/null) || return 1
+    btn="${out%%$'\n'*}"
+    val="${out#*$'\n'}"
+    case "$btn" in
+      Reveal) hidden=0 ;;
+      Hide)   hidden=1 ;;
+      *)      printf '%s' "$val"; return 0 ;;
     esac
   done
-  [ "$DECISION" = "cancelall" ] && break
-  if [ -z "$VAL" ]; then
-    skipped+=("$NAME"); continue
-  fi
-  # replace any existing entry, then append fresh
-  if grep -q "^${NAME}=" "$VAULT"; then
-    grep -v "^${NAME}=" "$VAULT" > "$VAULT.tmp" && mv "$VAULT.tmp" "$VAULT" && chmod 600 "$VAULT"
+}
+
+# vault_put NAME VALUE [NOTE] — replace any existing entry, then append fresh
+vault_put() {
+  local name="$1" val="$2" note="${3:-}"
+  if grep -q "^${name}=" "$VAULT"; then
+    grep -v "^${name}=" "$VAULT" > "$VAULT.tmp" && mv "$VAULT.tmp" "$VAULT" && chmod 600 "$VAULT"
   fi
   {
-    printf '# %s — added %s\n' "${NOTE:-$NAME}" "$(date +%F)"
-    printf '%s=%s\n' "$NAME" "$VAL"
+    printf '# %s — added %s\n' "${note:-$name}" "$(date +%F)"
+    printf '%s=%s\n' "$name" "$val"
   } >> "$VAULT"
-  saved+=("$NAME (${#VAL} chars)")
-done
+}
 
-[ ${#saved[@]} -gt 0 ] && echo "saved: ${saved[*]}"
-[ ${#skipped[@]} -gt 0 ] && echo "skipped: ${skipped[*]}"
-[ ${#cancelled[@]} -gt 0 ] && echo "cancelled: ${cancelled[*]}"
-exit 0
+# keypop_parse — read a .env-style blob on stdin, emit valid NAME<TAB>value lines.
+# Skips blanks, comments, and non-KEY=value lines; validates the name; strips one
+# layer of surrounding quotes. Splits on the FIRST '=' so base64/URL values survive.
+keypop_parse() {
+  local line k v
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="$(trim "$line")"
+    [ -z "$line" ] && continue
+    [ "${line:0:1}" = "#" ] && continue
+    line="${line#export }"
+    case "$line" in *=*) ;; *) continue ;; esac
+    k="$(trim "${line%%=*}")"
+    [[ "$k" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    v="$(trim "${line#*=}")"
+    if [ "${#v}" -ge 2 ] && { [ "${v:0:1}${v: -1}" = '""' ] || [ "${v:0:1}${v: -1}" = "''" ]; }; then
+      v="${v:1:${#v}-2}"
+    fi
+    printf '%s\t%s\n' "$k" "$v"
+  done
+}
+
+single_mode() {
+  local total=$# i=0 spec NAME NOTE MSG TITLE val j rest
+  local saved=() skipped=() cancelled=()
+  for spec in "$@"; do
+    i=$((i+1))
+    NAME="${spec%%:*}"
+    NOTE="${spec#*:}"; [ "$NOTE" = "$spec" ] && NOTE=""
+    MSG="Needed: $NAME"
+    grep -q "^${NAME}=" "$VAULT" && MSG="$MSG"$'\n'"(already in vault — Save replaces it)"
+    [ -n "$NOTE" ] && MSG="$MSG"$'\n\n'"$NOTE"
+    MSG="$MSG"$'\n\n'"Paste the value. Reveal shows what you typed; blank + Save skips."
+    TITLE="keypop ($i of $total)"
+    if val=$(ask_masked "$MSG" "$TITLE"); then
+      val="${val//$'\n'/}"
+      if [ -z "$val" ]; then skipped+=("$NAME"); continue; fi
+      vault_put "$NAME" "$val" "$NOTE"
+      saved+=("$NAME (${#val} chars)")
+    else
+      cancelled+=("$NAME")
+      j=0
+      for rest in "$@"; do j=$((j+1)); [ "$j" -le "$i" ] && continue; cancelled+=("${rest%%:*}"); done
+      break
+    fi
+  done
+  [ ${#saved[@]} -gt 0 ] && echo "saved: ${saved[*]}"
+  [ ${#skipped[@]} -gt 0 ] && echo "skipped: ${skipped[*]}"
+  [ ${#cancelled[@]} -gt 0 ] && echo "cancelled: ${cancelled[*]}"
+  return 0
+}
+
+paste_mode() {
+  local blob k v j n existing=0 list="" rep=""
+  local names=() vals=()
+  blob=$(ask_masked $'Paste one or more lines like NAME=value (a .env block works).\nReveal to check what you pasted; blank + Save cancels.' "keypop — paste keys") || { echo "cancelled"; return 0; }
+  [ -z "$(trim "$blob")" ] && { echo "nothing pasted"; return 0; }
+  while IFS=$'\t' read -r k v; do
+    [ -z "$k" ] && continue
+    names+=("$k"); vals+=("$v")
+  done < <(printf '%s\n' "$blob" | keypop_parse)
+  n=${#names[@]}
+  [ "$n" -eq 0 ] && { echo "no NAME=value lines found"; return 0; }
+  for ((j=0; j<n; j++)); do
+    list="$list"$'\n'"  • ${names[j]}"
+    grep -q "^${names[j]}=" "$VAULT" && existing=$((existing+1))
+  done
+  local cmsg="Found $n key(s):$list"
+  [ "$existing" -gt 0 ] && cmsg="$cmsg"$'\n\n'"$existing already in vault — Save replaces."
+  # confirm on names only — values are never shown here
+  osascript \
+    -e 'on run argv' \
+    -e 'tell application "System Events" to activate' \
+    -e 'tell application "System Events" to display dialog (item 1 of argv) with title "keypop — confirm" buttons {"Cancel","Save all"} default button "Save all" cancel button "Cancel"' \
+    -e 'end run' "$cmsg" >/dev/null 2>&1 || { echo "cancelled"; return 0; }
+  for ((j=0; j<n; j++)); do vault_put "${names[j]}" "${vals[j]}"; rep="$rep${names[j]} (${#vals[j]} chars) "; done
+  echo "saved: $(trim "$rep")"
+  return 0
+}
+
+# --- run dispatch only when executed, not when sourced (e.g. by test-parse.sh) ---
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  command -v osascript >/dev/null || { echo "error: osascript not found (keypop is macOS-only for now)"; exit 1; }
+  mkdir -p "$(dirname "$VAULT")" && chmod 700 "$(dirname "$VAULT")"
+  touch "$VAULT" && chmod 600 "$VAULT"
+  case "${1:-}" in
+    -h|--help) usage; exit 0 ;;
+    -p|--paste) paste_mode ;;
+    "") usage; exit 1 ;;
+    *) single_mode "$@" ;;
+  esac
+fi

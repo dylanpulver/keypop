@@ -59,6 +59,29 @@ skipped: SUPABASE_SECRET_KEY
 
 Change the vault location with `VAULT_FILE=/path/to/vault.env keypop ...`.
 
+### Paste a whole block at once
+
+Got several keys, or a `.env` snippet someone sent you? Skip the one-at-a-time dialogs:
+
+```bash
+keypop --paste
+```
+
+One dialog opens. Paste a block like:
+
+```
+OPENAI_API_KEY=sk-...
+export SUPABASE_SECRET_KEY="ey..."
+STRIPE_KEY=sk_live_...
+```
+
+keypop extracts every `NAME=value` line (handles `export`, quotes, and `=` inside values),
+then shows a confirmation listing the **key names it found** — never the values — so a
+misparse can't silently land in your vault. Confirm, and all of them save at once. The pasted
+block never enters your shell history or the model's context.
+
+Lines that aren't `NAME=value` (comments, prose, invalid names) are ignored.
+
 ## Reading secrets back
 
 The vault is a plain `KEY=value` file, so consumption is boring on purpose:
