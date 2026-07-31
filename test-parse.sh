@@ -41,4 +41,4 @@ absent this                  # prose line without a valid KEY=
 n="$(grep -c . <<<"$out")"
 [ "$n" -eq 6 ] || { echo "COUNT expected 6 pairs, got $n"; fail=1; }
 
-[ "$fail" -eq 0 ] && echo "PASS" || { echo "FAIL"; exit 1; }
+if [ "$fail" -eq 0 ]; then echo "PASS"; else echo "FAIL"; exit 1; fi

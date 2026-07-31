@@ -7,6 +7,12 @@ keypop pops a native dialog so your agent collects a secret it never sees — th
 
 <p align="center">🍎 macOS · 🐚 60 lines of shell · 🔌 no infra, no daemon, no account</p>
 
+<p align="center">
+<a href="https://github.com/dylanpulver/keypop/actions/workflows/ci.yml"><img src="https://github.com/dylanpulver/keypop/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"></a>
+<a href="SECURITY.md"><img src="https://img.shields.io/badge/security-model-informational.svg" alt="Security model"></a>
+</p>
+
 ---
 
 A secure secret-intake channel for AI coding agents (Claude Code, Cursor, etc.).
@@ -129,6 +135,14 @@ instead of asking for the value in chat.* See [`AGENT.md`](./AGENT.md) — copy 
   not an opaque prompt.
 - **The vault is a dumb file** — no daemon, no service, no lock-in. `grep` it, `source` it,
   delete it.
+
+## Security
+
+keypop holds your credentials, so it's explicit about what it does and doesn't protect. Short
+version: it keeps secret **values out of your agent's context**, but the vault is a plaintext
+file guarded by filesystem permissions, not an encrypted secrets manager. Read
+[SECURITY.md](./SECURITY.md) before trusting it with anything real — including one honest
+disclosure about the Reveal toggle and `argv`.
 
 ## License
 

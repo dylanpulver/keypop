@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: shellcheck keypop test-parse.sh test-behavior.sh
+
+      - name: parser tests
+        run: ./test-parse.sh
+
+      - name: behavior tests
+        run: ./test-behavior.sh
