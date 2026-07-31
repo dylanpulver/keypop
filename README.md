@@ -1,5 +1,3 @@
-<p align="center"><img src="assets/social.png" alt="keypop — stop pasting API keys into Claude Code and Cursor; your agent asks for a secret it never sees" width="640"></p>
-
 <h1 align="center">🔑 keypop</h1>
 
 <p align="center"><b>Stop pasting API keys into Claude Code, Cursor, and other AI agents.</b><br>
@@ -12,6 +10,8 @@ keypop pops a native dialog so your agent collects a secret it never sees — th
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"></a>
 <a href="SECURITY.md"><img src="https://img.shields.io/badge/security-model-informational.svg" alt="Security model"></a>
 </p>
+
+<p align="center"><img src="assets/demo.gif" alt="keypop demo: an agent runs keypop, a native dialog collects the API key, the terminal shows only 'saved: OPENAI_API_KEY (164 chars)'" width="760"></p>
 
 ---
 
