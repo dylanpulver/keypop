@@ -44,11 +44,11 @@ macOS only for now (uses `osascript`). Linux port via `zenity`/`kdialog` is a we
 keypop OPENAI_API_KEY:"for embeddings" SUPABASE_SECRET_KEY
 ```
 
+- **Check-first:** a name the vault already has is skipped silently (no dialog) and reported as `already set`. keypop only pops a dialog for names it's missing, so re-running is safe and cheap. Pass `--force` to prompt and replace an existing value (rotating a key).
 - **Save** (or Enter) writes the value to the vault.
 - **Reveal / Hide** toggles masking in place — unmask to check a paste, re-mask when done. Masked by default.
 - **Blank + Save** skips just this one.
 - **Cancel all** (or Esc) stops the rest.
-- Re-adding an existing name replaces it in place.
 
 Output reports names and character counts only — never values:
 

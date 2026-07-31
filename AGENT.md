@@ -7,21 +7,22 @@ instead of asking for secret values in chat. Adjust the path if you set a custom
 
 ## Secrets — the vault (`~/.keypop/vault.env`)
 
-The vault is the source of truth for credentials (`chmod 600`, outside all repos). **Before
-ever asking me for a credential, check it first** (`grep -i <service> ~/.keypop/vault.env`).
-"I gave you that key already" means it should be there.
+The vault is the source of truth for credentials (`chmod 600`, outside all repos). "I gave you
+that key already" means it should be there.
 
-**Intake — the popup, fired automatically.** The moment you need a credential that isn't in
-the vault — mid-task, no need for me to ask — run:
+**Intake — the popup, fired automatically.** The moment you need a credential, run keypop with
+every name you need. keypop checks the vault itself: names it already has are skipped silently
+(reported as "already set"), and a dialog pops only for the ones that are missing. So you never
+have to grep first, and re-running is safe.
 
 ```bash
 keypop 'NAME_ONE:why it is needed' 'NAME_TWO:note'
 ```
 
-One native dialog per secret pops on my screen showing the name + note (masked ••• input). I
-paste, hit Enter, done; "Reveal" unmasks to check the paste, blank + Save skips one, "Cancel
-all" stops the rest. The script writes
-straight to the vault and prints only names + char counts. **Never ask for a secret value in
+One native dialog per missing secret pops on my screen showing the name + note (masked •••
+input). I paste, hit Enter, done; "Reveal" unmasks to check the paste, blank + Save skips one,
+"Cancel all" stops the rest. keypop writes straight to the vault and prints only names + char
+counts. To rotate a key I already have, add `--force`. **Never ask for a secret value in
 chat** — ask via the popup; in chat just say what you popped and why. Batch all needed names
 into ONE invocation.
 

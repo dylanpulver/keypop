@@ -10,6 +10,9 @@
 #   keypop NAME[:note] [NAME2[:note2] ...]   one masked dialog per secret (agent flow)
 #   keypop --paste                           paste a .env-style block, extract all pairs at once
 #
+# Check-first: a name the vault already has is skipped silently (no dialog) and reported as
+# "already set". Pass --force to prompt and replace an existing value (e.g. to rotate a key).
+#
 # Masked by default. "Reveal" unmasks what you typed (to verify a paste), "Hide" re-masks.
 # Enter = Save. Blank + Save skips. Esc / "Cancel all" stops the rest.
 #
@@ -23,8 +26,10 @@ usage() {
 usage:
   keypop NAME[:note] [NAME2[:note2] ...]   one masked dialog per secret
   keypop --paste                           paste a .env-style block, extract all pairs
+  keypop --force NAME [...]                 prompt even if the vault already has it (rotate)
   keypop --help
 
+Names the vault already has are skipped (no dialog) unless you pass --force.
 In any dialog: Reveal/Hide toggles masking, Enter saves, blank + Save skips.
 EOF
 }
@@ -90,12 +95,25 @@ keypop_parse() {
 }
 
 single_mode() {
-  local total=$# i=0 spec NAME NOTE MSG TITLE val j rest
-  local saved=() skipped=() cancelled=()
+  local force=0 spec
+  local specs=()
+  for spec in "$@"; do
+    case "$spec" in -f|--force) force=1 ;; *) specs+=("$spec") ;; esac
+  done
+  set -- "${specs[@]+"${specs[@]}"}"
+
+  local total=$# i=0 NAME NOTE MSG TITLE val j rest cur
+  local saved=() skipped=() cancelled=() present=()
   for spec in "$@"; do
     i=$((i+1))
     NAME="${spec%%:*}"
     NOTE="${spec#*:}"; [ "$NOTE" = "$spec" ] && NOTE=""
+    # check-first: if the vault already has it, don't pop the dialog (use --force to replace)
+    if [ "$force" -eq 0 ] && grep -q "^${NAME}=" "$VAULT"; then
+      cur="$(grep "^${NAME}=" "$VAULT" | tail -1)"; cur="${cur#*=}"
+      present+=("$NAME (${#cur} chars)")
+      continue
+    fi
     MSG="Needed: $NAME"
     grep -q "^${NAME}=" "$VAULT" && MSG="$MSG"$'\n'"(already in vault — Save replaces it)"
     [ -n "$NOTE" ] && MSG="$MSG"$'\n\n'"$NOTE"
@@ -113,6 +131,7 @@ single_mode() {
       break
     fi
   done
+  [ ${#present[@]} -gt 0 ] && echo "already set: ${present[*]}"
   [ ${#saved[@]} -gt 0 ] && echo "saved: ${saved[*]}"
   [ ${#skipped[@]} -gt 0 ] && echo "skipped: ${skipped[*]}"
   [ ${#cancelled[@]} -gt 0 ] && echo "cancelled: ${cancelled[*]}"
