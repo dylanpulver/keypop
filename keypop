@@ -21,6 +21,7 @@
 # Vault location: $VAULT_FILE, default ~/.keypop/vault.env  (chmod 600).
 # macOS only (uses osascript). Linux zenity/kdialog port welcome — see README.
 set -uo pipefail
+KEYPOP_VERSION="0.1.0"
 VAULT="${VAULT_FILE:-$HOME/.keypop/vault.env}"
 
 usage() {
@@ -231,6 +232,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   touch "$VAULT" && chmod 600 "$VAULT"
   case "${1:-}" in
     -h|--help) usage; exit 0 ;;
+    -v|--version) echo "keypop $KEYPOP_VERSION"; exit 0 ;;
     -p|--paste) paste_mode ;;
     -i|--import) shift; import_mode "$@" ;;
     "") usage; exit 1 ;;
