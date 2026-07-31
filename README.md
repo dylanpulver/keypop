@@ -82,6 +82,27 @@ block never enters your shell history or the model's context.
 
 Lines that aren't `NAME=value` (comments, prose, invalid names) are ignored.
 
+### Working with project `.env` files
+
+Import an existing `.env` you already have on disk straight into the vault:
+
+```bash
+keypop --import ./.env
+```
+
+It parses the file, skips any names the vault already has (so you don't clobber),
+and shows a names-only confirmation before writing. Add `--force` to replace existing values.
+
+Put a project `.env` "in play" while collecting keys:
+
+```bash
+keypop --env ./.env OPENAI_API_KEY STRIPE_KEY
+```
+
+With `--env`, a name already in that `.env` counts as set (no dialog), and every key you do
+save is written to **both** the vault and that `.env` — so your app can read it at runtime
+without you copying anything by hand.
+
 ## Reading secrets back
 
 The vault is a plain `KEY=value` file, so consumption is boring on purpose:

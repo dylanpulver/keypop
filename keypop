@@ -6,12 +6,14 @@
 # closes that hole: the value is collected out-of-band in a native dialog and written
 # straight to a local gitignored file. It never transits the model's context.
 #
-# Two modes:
+# Modes:
 #   keypop NAME[:note] [NAME2[:note2] ...]   one masked dialog per secret (agent flow)
 #   keypop --paste                           paste a .env-style block, extract all pairs at once
+#   keypop --import <file>                   load an existing .env file into the vault
+#   keypop --env <file> NAME [...]           also treat a project .env as present/mirror target
 #
-# Check-first: a name the vault already has is skipped silently (no dialog) and reported as
-# "already set". Pass --force to prompt and replace an existing value (e.g. to rotate a key).
+# Check-first: a name the vault (or the --env file) already has is skipped silently (no dialog)
+# and reported as "already set". Pass --force to prompt and replace an existing value (rotate).
 #
 # Masked by default. "Reveal" unmasks what you typed (to verify a paste), "Hide" re-masks.
 # Enter = Save. Blank + Save skips. Esc / "Cancel all" stops the rest.
@@ -26,11 +28,14 @@ usage() {
 usage:
   keypop NAME[:note] [NAME2[:note2] ...]   one masked dialog per secret
   keypop --paste                           paste a .env-style block, extract all pairs
+  keypop --import <file>                   load an existing .env file into the vault
+  keypop --env <file> NAME [...]           also check/write NAME in a project .env
   keypop --force NAME [...]                 prompt even if the vault already has it (rotate)
   keypop --help
 
 Names the vault already has are skipped (no dialog) unless you pass --force.
-In any dialog: Reveal/Hide toggles masking, Enter saves, blank + Save skips.
+With --env, a name already in that .env also counts as set, and saved keys are
+mirrored into it. In any dialog: Reveal/Hide toggles masking, Enter saves, blank + Save skips.
 EOF
 }
 
@@ -61,17 +66,25 @@ ask_masked() {
   done
 }
 
-# vault_put NAME VALUE [NOTE] — replace any existing entry, then append fresh
-vault_put() {
-  local name="$1" val="$2" note="${3:-}"
-  if grep -q "^${name}=" "$VAULT"; then
-    grep -v "^${name}=" "$VAULT" > "$VAULT.tmp" && mv "$VAULT.tmp" "$VAULT" && chmod 600 "$VAULT"
+# file_has FILE NAME — true if FILE exists and defines NAME
+file_has() { [ -f "$1" ] && grep -q "^${2}=" "$1"; }
+
+# file_put FILE NAME VALUE [COMMENT] — replace any existing entry, then append fresh.
+# COMMENT (optional) is written as a leading `# ...` line for provenance.
+file_put() {
+  local file="$1" name="$2" val="$3" comment="${4:-}"
+  mkdir -p "$(dirname "$file")" && touch "$file" && chmod 600 "$file" 2>/dev/null || true
+  if grep -q "^${name}=" "$file"; then
+    grep -v "^${name}=" "$file" > "$file.tmp" && mv "$file.tmp" "$file" && chmod 600 "$file" 2>/dev/null || true
   fi
   {
-    printf '# %s — added %s\n' "${note:-$name}" "$(date +%F)"
+    [ -n "$comment" ] && printf '# %s\n' "$comment"
     printf '%s=%s\n' "$name" "$val"
-  } >> "$VAULT"
+  } >> "$file"
 }
+
+# vault_put NAME VALUE [NOTE] — write to the vault, with a dated provenance comment
+vault_put() { file_put "$VAULT" "$1" "$2" "${3:-$1} — added $(date +%F)"; }
 
 # keypop_parse — read a .env-style blob on stdin, emit valid NAME<TAB>value lines.
 # Skips blanks, comments, and non-KEY=value lines; validates the name; strips one
@@ -95,27 +108,34 @@ keypop_parse() {
 }
 
 single_mode() {
-  local force=0 spec
+  local force=0 envfile="" spec
   local specs=()
-  for spec in "$@"; do
-    case "$spec" in -f|--force) force=1 ;; *) specs+=("$spec") ;; esac
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -f|--force) force=1 ;;
+      --env)      shift; envfile="${1:-}" ;;
+      --env=*)    envfile="${1#--env=}" ;;
+      *)          specs+=("$1") ;;
+    esac
+    shift
   done
   set -- "${specs[@]+"${specs[@]}"}"
 
-  local total=$# i=0 NAME NOTE MSG TITLE val j rest cur
+  local total=$# i=0 NAME NOTE MSG TITLE val j rest cur mirrored=()
   local saved=() skipped=() cancelled=() present=()
   for spec in "$@"; do
     i=$((i+1))
     NAME="${spec%%:*}"
     NOTE="${spec#*:}"; [ "$NOTE" = "$spec" ] && NOTE=""
-    # check-first: if the vault already has it, don't pop the dialog (use --force to replace)
-    if [ "$force" -eq 0 ] && grep -q "^${NAME}=" "$VAULT"; then
-      cur="$(grep "^${NAME}=" "$VAULT" | tail -1)"; cur="${cur#*=}"
+    # check-first: skip the dialog if the vault (or the --env file) already has it (--force overrides)
+    if [ "$force" -eq 0 ] && { file_has "$VAULT" "$NAME" || { [ -n "$envfile" ] && file_has "$envfile" "$NAME"; }; }; then
+      if file_has "$VAULT" "$NAME"; then cur="$(grep "^${NAME}=" "$VAULT" | tail -1)"; else cur="$(grep "^${NAME}=" "$envfile" | tail -1)"; fi
+      cur="${cur#*=}"
       present+=("$NAME (${#cur} chars)")
       continue
     fi
     MSG="Needed: $NAME"
-    grep -q "^${NAME}=" "$VAULT" && MSG="$MSG"$'\n'"(already in vault — Save replaces it)"
+    file_has "$VAULT" "$NAME" && MSG="$MSG"$'\n'"(already in vault — Save replaces it)"
     [ -n "$NOTE" ] && MSG="$MSG"$'\n\n'"$NOTE"
     MSG="$MSG"$'\n\n'"Paste the value. Reveal shows what you typed; blank + Save skips."
     TITLE="keypop ($i of $total)"
@@ -124,6 +144,7 @@ single_mode() {
       if [ -z "$val" ]; then skipped+=("$NAME"); continue; fi
       vault_put "$NAME" "$val" "$NOTE"
       saved+=("$NAME (${#val} chars)")
+      [ -n "$envfile" ] && { file_put "$envfile" "$NAME" "$val"; mirrored+=("$NAME"); }
     else
       cancelled+=("$NAME")
       j=0
@@ -132,6 +153,7 @@ single_mode() {
     fi
   done
   [ ${#present[@]} -gt 0 ] && echo "already set: ${present[*]}"
+  [ ${#mirrored[@]} -gt 0 ] && echo "also written to $envfile: ${mirrored[*]}"
   [ ${#saved[@]} -gt 0 ] && echo "saved: ${saved[*]}"
   [ ${#skipped[@]} -gt 0 ] && echo "skipped: ${skipped[*]}"
   [ ${#cancelled[@]} -gt 0 ] && echo "cancelled: ${cancelled[*]}"
@@ -166,6 +188,39 @@ paste_mode() {
   return 0
 }
 
+# import_mode FILE [--force] — load an existing .env file's pairs into the vault.
+# Names the vault already has are skipped (--force replaces). Confirms on names only.
+import_mode() {
+  local file="" force=0 a k v j n existing=0 list="" rep="" skiplist=""
+  local names=() vals=()
+  for a in "$@"; do
+    case "$a" in -f|--force) force=1 ;; *) [ -z "$file" ] && file="$a" ;; esac
+  done
+  [ -n "$file" ] || { echo "usage: keypop --import <file> [--force]"; return 1; }
+  [ -f "$file" ] || { echo "no such file: $file"; return 1; }
+  while IFS=$'\t' read -r k v; do
+    [ -z "$k" ] && continue
+    if [ "$force" -eq 0 ] && file_has "$VAULT" "$k"; then existing=$((existing+1)); skiplist="$skiplist $k"; continue; fi
+    names+=("$k"); vals+=("$v")
+  done < <(keypop_parse < "$file")
+  n=${#names[@]}
+  if [ "$n" -eq 0 ]; then
+    [ "$existing" -gt 0 ] && echo "already set (skipped$skiplist)" || echo "no NAME=value lines found in $file"
+    return 0
+  fi
+  for ((j=0; j<n; j++)); do list="$list"$'\n'"  • ${names[j]}"; done
+  local cmsg="Import $n key(s) from $file into the vault:$list"
+  [ "$existing" -gt 0 ] && cmsg="$cmsg"$'\n\n'"($existing already in vault, skipped — --force to replace)"
+  osascript \
+    -e 'on run argv' \
+    -e 'tell application "System Events" to activate' \
+    -e 'tell application "System Events" to display dialog (item 1 of argv) with title "keypop — confirm import" buttons {"Cancel","Import"} default button "Import" cancel button "Cancel"' \
+    -e 'end run' "$cmsg" >/dev/null 2>&1 || { echo "cancelled"; return 0; }
+  for ((j=0; j<n; j++)); do vault_put "${names[j]}" "${vals[j]}"; rep="$rep${names[j]} (${#vals[j]} chars) "; done
+  echo "imported: $(trim "$rep")"
+  return 0
+}
+
 # --- run dispatch only when executed, not when sourced (e.g. by test-parse.sh) ---
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   command -v osascript >/dev/null || { echo "error: osascript not found (keypop is macOS-only for now)"; exit 1; }
@@ -174,6 +229,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   case "${1:-}" in
     -h|--help) usage; exit 0 ;;
     -p|--paste) paste_mode ;;
+    -i|--import) shift; import_mode "$@" ;;
     "") usage; exit 1 ;;
     *) single_mode "$@" ;;
   esac
