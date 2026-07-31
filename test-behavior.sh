@@ -14,7 +14,7 @@ absent(){ if grep -q "^$2=" "$1"; then echo "FAIL $3: $2 present in $1"; fail=1;
 # --- Test A: --env presence skips the dialog (no pop) ---
 VAULT="$(mktemp)"; ENVF="$(mktemp)"
 printf 'FOO=abc\n' > "$ENVF"
-# shellcheck disable=SC2329  # overrides the sourced function; invoked indirectly by single_mode
+# shellcheck disable=SC2317,SC2329  # overrides the sourced function; invoked indirectly by single_mode
 ask_masked() { echo "POPPED"; return 0; }   # if reached, we'd see a bogus save
 outA="$(single_mode --env "$ENVF" FOO 2>&1)"
 check "A: env-present key reported already set" "$outA" "already set: FOO (3 chars)"
@@ -22,7 +22,7 @@ absent "$VAULT" FOO "A: env-present key did NOT get written to vault"
 
 # --- Test B: saving with --env mirrors into the project .env ---
 VAULT="$(mktemp)"; ENVF="$(mktemp)"
-# shellcheck disable=SC2329  # overrides the sourced function; invoked indirectly by single_mode
+# shellcheck disable=SC2317,SC2329  # overrides the sourced function; invoked indirectly by single_mode
 ask_masked() { printf 'sekret'; return 0; }   # simulate user pasting "sekret" + Save
 outB="$(single_mode --env "$ENVF" NEWKEY 2>&1)"
 has "$VAULT" NEWKEY "B: saved to vault"
@@ -33,7 +33,7 @@ case "$outB" in *"also written to $ENVF: NEWKEY"*) echo "ok   B: reports the mir
 VAULT="$(mktemp)"; SRC="$(mktemp)"
 printf 'EXISTING=old\n'  > "$VAULT"
 printf 'EXISTING=new\nFRESH=xyz\n' > "$SRC"
-# shellcheck disable=SC2329  # overrides the sourced osascript; invoked indirectly by import_mode
+# shellcheck disable=SC2317,SC2329  # overrides the sourced osascript; invoked indirectly by import_mode
 osascript() { return 0; }   # confirm the import dialog
 outC="$(import_mode "$SRC" 2>&1)"
 has "$VAULT" FRESH "C: fresh key imported"
@@ -44,7 +44,7 @@ case "$outC" in *"imported: FRESH"*) echo "ok   C: reports only FRESH imported";
 VAULT="$(mktemp)"; SRC="$(mktemp)"
 printf 'EXISTING=old\n' > "$VAULT"
 printf 'EXISTING=new\n' > "$SRC"
-# shellcheck disable=SC2329  # overrides the sourced osascript; invoked indirectly by import_mode
+# shellcheck disable=SC2317,SC2329  # overrides the sourced osascript; invoked indirectly by import_mode
 osascript() { return 0; }
 import_mode "$SRC" --force >/dev/null 2>&1
 check "D: --force replaced existing value" "$(grep '^EXISTING=' "$VAULT" | tail -1)" "EXISTING=new"

@@ -73,9 +73,12 @@ file_has() { [ -f "$1" ] && grep -q "^${2}=" "$1"; }
 # COMMENT (optional) is written as a leading `# ...` line for provenance.
 file_put() {
   local file="$1" name="$2" val="$3" comment="${4:-}"
-  mkdir -p "$(dirname "$file")" && touch "$file" && chmod 600 "$file" 2>/dev/null || true
+  mkdir -p "$(dirname "$file")"
+  touch "$file" 2>/dev/null || true
+  chmod 600 "$file" 2>/dev/null || true
   if grep -q "^${name}=" "$file"; then
-    grep -v "^${name}=" "$file" > "$file.tmp" && mv "$file.tmp" "$file" && chmod 600 "$file" 2>/dev/null || true
+    grep -v "^${name}=" "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+    chmod 600 "$file" 2>/dev/null || true
   fi
   {
     [ -n "$comment" ] && printf '# %s\n' "$comment"
