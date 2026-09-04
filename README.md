@@ -147,3 +147,7 @@ disclosure about the Reveal toggle and `argv`.
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+---
+
+Built by [Dylan Pulver](https://dylanpulver.com), software engineer and entrepreneur in Toronto.
