@@ -37,7 +37,7 @@ The agent sees only the confirmation (`saved: OPENAI_API_KEY (164 chars)`) — n
 ## Install
 
 ```bash
-git clone https://github.com/<you>/keypop.git
+git clone https://github.com/dylanpulver/keypop.git
 ln -s "$PWD/keypop/keypop" /usr/local/bin/keypop   # or add to PATH
 ```
 
