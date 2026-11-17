@@ -14,9 +14,11 @@ Your agent asks for a key by name, a native macOS dialog collects it, and the va
 <p align="center"><img src="assets/demo.gif" alt="keypop demo: an agent runs keypop, a native dialog collects the API key, the terminal shows only 'saved: OPENAI_API_KEY (164 chars)'" width="760"></p>
 
 ```bash
-git clone https://github.com/dylanpulver/keypop.git && ln -s "$PWD/keypop/keypop" /usr/local/bin/keypop
+git clone https://github.com/dylanpulver/keypop.git && mkdir -p ~/.local/bin && ln -s "$PWD/keypop/keypop" ~/.local/bin/keypop
 keypop OPENAI_API_KEY:"for embeddings"
 ```
+
+That needs `~/.local/bin` on your `PATH`. No sudo involved.
 
 Then paste [`AGENT.md`](./AGENT.md) into your `CLAUDE.md` or rules file so the agent runs keypop instead of asking you for the key in chat.
 
