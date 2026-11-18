@@ -1,9 +1,9 @@
 <h1 align="center">🔑 keypop</h1>
 
 <p align="center"><b>Stop pasting API keys into Claude Code, Cursor, and other AI agents.</b><br>
-keypop pops a native dialog so your agent collects a secret it never sees — the value goes to a local file, never the model's context.</p>
+Your agent asks for a key by name, a native macOS dialog collects it, and the value goes to a local file. The model never sees it.</p>
 
-<p align="center">🍎 macOS · 🐚 60 lines of shell · 🔌 no infra, no daemon, no account</p>
+<p align="center">🍎 macOS · 🐚 one shell script · 🔌 no infra, no daemon, no account</p>
 
 <p align="center">
 <a href="https://github.com/dylanpulver/keypop/actions/workflows/ci.yml"><img src="https://github.com/dylanpulver/keypop/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -13,17 +13,23 @@ keypop pops a native dialog so your agent collects a secret it never sees — th
 
 <p align="center"><img src="assets/demo.gif" alt="keypop demo: an agent runs keypop, a native dialog collects the API key, the terminal shows only 'saved: OPENAI_API_KEY (164 chars)'" width="760"></p>
 
+```bash
+git clone https://github.com/dylanpulver/keypop.git && mkdir -p ~/.local/bin && ln -s "$PWD/keypop/keypop" ~/.local/bin/keypop
+keypop OPENAI_API_KEY:"for embeddings"
+```
+
+That needs `~/.local/bin` on your `PATH`. No sudo involved.
+
+Then paste [`AGENT.md`](./AGENT.md) into your `CLAUDE.md` or rules file so the agent runs keypop instead of asking you for the key in chat.
+
 ---
 
-A secure secret-intake channel for AI coding agents (Claude Code, Cursor, etc.).
+**The problem:** when an agent needs a credential, the easy flow is "paste the key into chat."
+That value then lives in your transcript history, in logs and in the model's context window.
 
-**The problem:** when an agent needs a credential, the obvious flow is "paste the key
-into chat." That value then lives in your transcript history, in logs, and in the model's
-context window — everywhere except where you want it.
-
-**The fix:** the agent requests a secret *by name*; a native OS dialog collects the *value*
-out-of-band; the value goes straight to a local, gitignored file. The secret never transits
-the model's context.
+**The fix:** the agent requests a secret *by name*. A native OS dialog collects the *value*
+out of band, and the value goes straight to a local, gitignored file. The secret never passes
+through the model's context.
 
 ```
 agent  ──"I need OPENAI_API_KEY"──▶  keypop  ──▶  native macOS dialog (hidden input)
@@ -32,16 +38,9 @@ agent  ──"I need OPENAI_API_KEY"──▶  keypop  ──▶  native macOS d
                                              ~/.keypop/vault.env  (chmod 600)
 ```
 
-The agent sees only the confirmation (`saved: OPENAI_API_KEY (164 chars)`) — never the value.
+The agent sees only the confirmation (`saved: OPENAI_API_KEY (164 chars)`), never the value.
 
-## Install
-
-```bash
-git clone https://github.com/dylanpulver/keypop.git
-ln -s "$PWD/keypop/keypop" /usr/local/bin/keypop   # or add to PATH
-```
-
-macOS only for now (uses `osascript`). Linux port via `zenity`/`kdialog` is a welcome PR.
+macOS only for now (uses `osascript`). A Linux port via `zenity`/`kdialog` is a welcome PR.
 
 ## Usage
 
