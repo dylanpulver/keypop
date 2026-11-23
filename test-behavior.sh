@@ -49,4 +49,11 @@ osascript() { return 0; }
 import_mode "$SRC" --force >/dev/null 2>&1
 check "D: --force replaced existing value" "$(grep '^EXISTING=' "$VAULT" | tail -1)" "EXISTING=new"
 
+# --- Test E: --help, --version and no args never create the vault ---
+TMPD="$(mktemp -d)"
+for a in --help --version ""; do
+  VAULT_FILE="$TMPD/v/vault.env" "$DIR/keypop" ${a:+"$a"} >/dev/null 2>&1
+  if [ -e "$TMPD/v" ]; then echo "FAIL E: '${a:-no args}' created the vault dir"; fail=1; else echo "ok   E: '${a:-no args}' left the vault alone"; fi
+done
+
 if [ "$fail" -eq 0 ]; then echo "PASS"; else echo "FAIL"; exit 1; fi
