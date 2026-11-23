@@ -227,15 +227,18 @@ import_mode() {
 
 # --- run dispatch only when executed, not when sourced (e.g. by test-parse.sh) ---
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
-  command -v osascript >/dev/null || { echo "error: osascript not found (keypop is macOS-only for now)"; exit 1; }
-  mkdir -p "$(dirname "$VAULT")" && chmod 700 "$(dirname "$VAULT")"
-  touch "$VAULT" && chmod 600 "$VAULT"
+  # --help, --version and no args answer before anything touches the vault
   case "${1:-}" in
     -h|--help) usage; exit 0 ;;
     -v|--version) echo "keypop $KEYPOP_VERSION"; exit 0 ;;
+    "") usage; exit 1 ;;
+  esac
+  command -v osascript >/dev/null || { echo "error: osascript not found (keypop is macOS-only for now)"; exit 1; }
+  mkdir -p "$(dirname "$VAULT")" && chmod 700 "$(dirname "$VAULT")"
+  touch "$VAULT" && chmod 600 "$VAULT"
+  case "$1" in
     -p|--paste) paste_mode ;;
     -i|--import) shift; import_mode "$@" ;;
-    "") usage; exit 1 ;;
     *) single_mode "$@" ;;
   esac
 fi
